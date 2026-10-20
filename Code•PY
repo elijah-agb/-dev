@@ -1,0 +1,173 @@
+"""elijah_agb portfolio — server-rendered with Flask. No frontend JavaScript.
+
+Run:
+    pip install flask
+    python app.py
+Open http://127.0.0.1:5000
+"""
+import json
+from datetime import datetime
+from pathlib import Path
+
+from flask import Flask, redirect, render_template_string, request, url_for
+
+app = Flask(__name__)
+MESSAGES = Path(__file__).with_name("messages.json")
+
+# ---- Edit your content here -------------------------------------------------
+PROFILE = {
+    "handle": "elijah_agb",
+    "headline": "I build the parts of the web you never see, and make them dependable.",
+    "about": "Backend developer focused on APIs, data pipelines and server-rendered apps. "
+             "I like small, readable codebases that stay fast under load.",
+    "email": "hello@example.com",
+    "links": [("GitHub", "https://github.com/"), ("LinkedIn", "https://linkedin.com/")],
+}
+PROJECTS = [
+    {"name": "Ledgerline", "desc": "Invoicing API with idempotent payments and audit trails.", "stack": "Python, PostgreSQL, Redis"},
+    {"name": "Parcelwatch", "desc": "Shipment tracking service that polls carriers and pushes updates.", "stack": "Node.js, Express, MongoDB"},
+    {"name": "Quietqueue", "desc": "Background job runner with retries, scheduling and a status page.", "stack": "Go, SQLite"},
+]
+SKILLS = ["Python", "Flask", "Node.js", "PostgreSQL", "Redis", "Docker", "REST design", "Testing"]
+# -----------------------------------------------------------------------------
+
+PAGE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ p.handle }}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Figtree:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0d1b2a; --deep:#14304a; --teal:#2ec4b6; --coral:#ff8a65; --mist:#eaf6f6;
+  --glass:rgba(255,255,255,.12); --edge:rgba(255,255,255,.28); --text:#f2fbfb; --muted:#bcd6d9;
+}
+*{box-sizing:border-box;margin:0}
+html{scroll-behavior:smooth}
+body{
+  font:400 1.05rem/1.6 "Figtree",system-ui,sans-serif; color:var(--text); min-height:100vh;
+  background:linear-gradient(160deg,var(--ink),var(--deep) 60%,#0b3b3f) fixed; overflow-x:hidden;
+}
+/* soft light behind the glass so the blur has something to refract */
+body::before,body::after{content:"";position:fixed;border-radius:50%;filter:blur(70px);z-index:-1}
+body::before{width:42vmax;height:42vmax;background:var(--teal);opacity:.45;top:-12vmax;left:-10vmax}
+body::after{width:36vmax;height:36vmax;background:var(--coral);opacity:.35;bottom:-12vmax;right:-8vmax}
+.wrap{max-width:900px;margin:0 auto;padding:1.25rem 1.25rem 4rem}
+.glass{
+  background:var(--glass); border:1px solid var(--edge); border-radius:24px;
+  -webkit-backdrop-filter:blur(18px) saturate(140%); backdrop-filter:blur(18px) saturate(140%);
+  box-shadow:0 12px 40px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.35);
+}
+nav{display:flex;justify-content:space-between;align-items:center;padding:.8rem 1.25rem;border-radius:999px;position:sticky;top:1rem;z-index:5}
+nav b{font:800 1.1rem "Bricolage Grotesque",sans-serif;letter-spacing:.01em}
+nav div{display:flex;gap:1.25rem}
+a{color:inherit;text-decoration:none}
+nav a{color:var(--muted)} nav a:hover{color:#fff}
+a:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--coral);outline-offset:3px}
+.hero{padding:clamp(2rem,7vw,4.5rem);margin-top:2rem}
+h1{font:800 clamp(2.2rem,6vw,3.9rem)/1.05 "Bricolage Grotesque",sans-serif;max-width:16ch}
+.hero p{color:var(--muted);max-width:52ch;margin-top:1.25rem}
+.btns{display:flex;gap:.75rem;margin-top:2rem;flex-wrap:wrap}
+.btn{padding:.75rem 1.4rem;border-radius:999px;border:1px solid var(--edge);background:var(--glass);font-weight:500;cursor:pointer;color:var(--text);font-family:inherit;font-size:1rem}
+.btn.main{background:var(--coral);border-color:transparent;color:#2b1208}
+.btn:hover{filter:brightness(1.1)}
+h2{font:800 1.7rem "Bricolage Grotesque",sans-serif;margin:3.5rem 0 1rem}
+.grid{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}
+.card{padding:1.5rem}
+.card h3{font:800 1.25rem "Bricolage Grotesque",sans-serif}
+.card p{color:var(--muted);margin:.5rem 0 1rem}
+.card small{color:var(--teal)}
+.chips{display:flex;flex-wrap:wrap;gap:.6rem;padding:1.5rem}
+.chips span{padding:.35rem .9rem;border-radius:999px;border:1px solid var(--edge);background:rgba(255,255,255,.08)}
+form{padding:1.5rem;display:grid;gap:.9rem}
+label{display:grid;gap:.35rem;color:var(--muted);font-size:.95rem}
+input,textarea{
+  font:inherit;color:var(--text);padding:.75rem 1rem;border-radius:14px;
+  border:1px solid var(--edge);background:rgba(255,255,255,.08);
+}
+input::placeholder,textarea::placeholder{color:#8fb0b5}
+.note{padding:1rem 1.5rem;margin-top:1rem;border-color:var(--teal)}
+footer{margin-top:3rem;color:var(--muted);text-align:center;font-size:.9rem}
+footer a{text-decoration:underline}
+/* fallback if the browser can't blur */
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){.glass{background:rgba(20,48,74,.85)}}
+@media (prefers-reduced-motion:no-preference){.hero{animation:rise .7s ease-out both}}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav class="glass">
+    <b>{{ p.handle }}</b>
+    <div><a href="#work">Work</a><a href="#skills">Skills</a><a href="#contact">Contact</a></div>
+  </nav>
+
+  <header class="hero glass">
+    <h1>{{ p.headline }}</h1>
+    <p>{{ p.about }}</p>
+    <div class="btns">
+      <a class="btn main" href="#work">See my work</a>
+      <a class="btn" href="#contact">Send a message</a>
+    </div>
+  </header>
+
+  <h2 id="work">Work</h2>
+  <section class="grid">
+    {% for pr in projects %}
+    <article class="card glass">
+      <h3>{{ pr.name }}</h3>
+      <p>{{ pr.desc }}</p>
+      <small>{{ pr.stack }}</small>
+    </article>
+    {% endfor %}
+  </section>
+
+  <h2 id="skills">Skills</h2>
+  <section class="chips glass">{% for s in skills %}<span>{{ s }}</span>{% endfor %}</section>
+
+  <h2 id="contact">Contact</h2>
+  <form class="glass" method="post" action="{{ url_for('contact') }}">
+    <label>Your name<input name="name" required maxlength="80" placeholder="Ada Lovelace"></label>
+    <label>Your email<input name="email" type="email" required maxlength="120" placeholder="ada@example.com"></label>
+    <label>Message<textarea name="message" rows="5" required maxlength="2000" placeholder="What would you like to build?"></textarea></label>
+    <button class="btn main" type="submit">Send message</button>
+  </form>
+  {% if sent %}<div class="note glass">Message sent. I'll reply to the email you gave.</div>{% endif %}
+
+  <footer>
+    {% for n,u in p.links %}<a href="{{ u }}" rel="noopener">{{ n }}</a>{{ " &nbsp;" | safe if not loop.last }}{% endfor %}
+    <p>&copy; {{ year }} {{ p.handle }}</p>
+  </footer>
+</div>
+</body>
+</html>"""
+
+
+@app.get("/")
+def home():
+    return render_template_string(
+        PAGE, p=PROFILE, projects=PROJECTS, skills=SKILLS,
+        sent=request.args.get("sent") == "1", year=datetime.now().year,
+    )
+
+
+@app.post("/contact")
+def contact():
+    entry = {
+        "time": datetime.now().isoformat(timespec="seconds"),
+        "name": request.form.get("name", "").strip()[:80],
+        "email": request.form.get("email", "").strip()[:120],
+        "message": request.form.get("message", "").strip()[:2000],
+    }
+    if entry["name"] and entry["email"] and entry["message"]:
+        data = json.loads(MESSAGES.read_text()) if MESSAGES.exists() else []
+        data.append(entry)
+        MESSAGES.write_text(json.dumps(data, indent=2))
+    return redirect(url_for("home", sent=1) + "#contact")
+
+
+if __name__ == "__main__":
+    app.run(debug=True)
